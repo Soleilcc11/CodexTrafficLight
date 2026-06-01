@@ -22,8 +22,8 @@ Codex 菜单栏 + ESP32-C3 BLE 硬件状态灯监控工具。它从本机 `~/.co
 ### 从源码运行
 
 ```bash
-git clone https://github.com/DemoJj/claude-code-traffic-light.git codex-traffic-light
-cd codex-traffic-light
+git clone https://github.com/Soleilcc11/CodexTrafficLight.git
+cd CodexTrafficLight
 
 python3 -m venv venv
 source venv/bin/activate
@@ -82,7 +82,7 @@ python traffic_light.py
 
 ## ESP32-C3 BLE 硬件
 
-本项目兼容参考项目 `JasonLam08/cursor_agent_status_light` 的默认固件协议：
+本项目包含 ESP32-C3 参考固件：[ESP32C3/ESP32C3.ino](ESP32C3/ESP32C3.ino)，并兼容参考项目 `JasonLam08/cursor_agent_status_light` 的默认固件协议：
 
 ```text
 Device Name: CursorLight
