@@ -48,10 +48,10 @@ class StatusParserTests(unittest.TestCase):
     def test_new_turn_maps_to_thinking(self):
         status = _status([self.base_meta()])
         self.assertEqual(status.hardware_state, "thinking")
-        self.assertEqual(status.hardware_mode, "thinking")
+        self.assertEqual(status.hardware_mode, "green")
         self.assertEqual(status.state, "green")
 
-    def test_assistant_response_maps_to_ai(self):
+    def test_assistant_response_maps_to_marquee(self):
         status = _status(
             [
                 self.base_meta(),
@@ -64,10 +64,10 @@ class StatusParserTests(unittest.TestCase):
             ]
         )
         self.assertEqual(status.hardware_state, "generating")
-        self.assertEqual(status.hardware_mode, "ai")
+        self.assertEqual(status.hardware_mode, "thinking")
         self.assertEqual(status.state, "green")
 
-    def test_running_tool_maps_to_busy(self):
+    def test_running_tool_maps_to_marquee(self):
         status = _status(
             [
                 self.base_meta(),
@@ -79,11 +79,11 @@ class StatusParserTests(unittest.TestCase):
                 },
             ]
         )
-        self.assertEqual(status.hardware_state, "busy")
-        self.assertEqual(status.hardware_mode, "busy")
+        self.assertEqual(status.hardware_state, "generating")
+        self.assertEqual(status.hardware_mode, "thinking")
         self.assertEqual(status.state, "green")
 
-    def test_waiting_permission_maps_to_alarm(self):
+    def test_waiting_permission_maps_to_review_request(self):
         status = _status(
             [
                 self.base_meta(),
@@ -98,8 +98,8 @@ class StatusParserTests(unittest.TestCase):
                 },
             ]
         )
-        self.assertEqual(status.hardware_state, "blocked")
-        self.assertEqual(status.hardware_mode, "alarm")
+        self.assertEqual(status.hardware_state, "review_request")
+        self.assertEqual(status.hardware_mode, "busy")
         self.assertEqual(status.state, "yellow")
 
     def test_success_final_maps_to_success(self):
@@ -115,8 +115,8 @@ class StatusParserTests(unittest.TestCase):
             ]
         )
         self.assertEqual(status.hardware_state, "success")
-        self.assertEqual(status.hardware_mode, "success")
-        self.assertEqual(status.state, "green")
+        self.assertEqual(status.hardware_mode, "red_blink_5")
+        self.assertEqual(status.state, "red")
 
     def test_error_final_maps_to_error(self):
         status = _status(

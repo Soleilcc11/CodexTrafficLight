@@ -10,8 +10,8 @@ Codex 菜单栏 + ESP32-C3 BLE 硬件状态灯监控工具。它从本机 `~/.co
 
 - **红绿灯状态指示**：在 macOS 菜单栏实时显示 Codex 会话状态，并同步到硬件
   - 🟢 绿灯常亮 — 任务成功 / Codex 会话进行中
-  - 🟡 黄灯闪烁 — 严重异常 / 阻塞（如等待权限）
-  - 🔴 红灯常亮 — 异常 / 会话结束或空闲
+  - 🟡 黄灯闪烁 — 请求审查 / 等待权限
+  - 🔴 红灯 — 任务完成闪烁 / 异常 / 空闲
 - **ESP32-C3 BLE 硬件输出**：兼容 `CursorLight` 固件协议，通过 BLE 写入灯效模式
 - **多项目支持**：按 Codex 会话的 `cwd` 自动分组，同时监控多个项目，一键切换
 - **自动配置**：启动时自动配置 Codex `notify` 桥接，退出时自动还原
@@ -52,8 +52,8 @@ python traffic_light.py
 ## 工作原理
 
 1. **会话轮询**：读取 `~/.codex/sessions/**/*.jsonl`，根据最新事件推断会话活跃状态。
-2. **阶段检测**：根据用户输入、助手输出、普通工具调用和权限请求推断 `thinking / ai / busy / alarm`。
-3. **结果检测**：发现 `phase=final` 后，根据最近工具输出判断 `success / error`。
+2. **阶段检测**：根据用户输入、助手输出、普通工具调用和权限请求推断思考、生成、请求审查。
+3. **结果检测**：发现 `phase=final` 后，根据最近工具输出判断任务完成或异常。
 4. **通知桥接**：启动时备份 `~/.codex/config.toml`，将 Codex `notify` 临时指向 `~/.codex/traffic_light/codex_notify_bridge.py`，并在桥接脚本中继续调用原始 `notify` 命令。
 5. **硬件同步**：使用 `bleak` 扫描 `CursorLight` BLE 设备，并向 mode characteristic 写入模式字符串；连接失败只写日志，不影响菜单栏。
 
@@ -70,16 +70,15 @@ python traffic_light.py
 
 | Codex 事件/状态 | 菜单栏状态 | 硬件 mode |
 | --- | --- |
-| 新回合刚开始，尚未看到助手输出或工具调用 | 🟢 绿灯 | `thinking` 连贯跑马灯 |
-| 助手正在输出中 | 🟢 绿灯 | `ai` 柔和慢速跑马灯 |
-| 存在未完成的普通工具调用 | 🟢 绿灯 | `busy` 黄灯慢闪 |
-| 存在未完成的 `require_escalated` 权限请求 | 🟡 黄灯闪烁 | `alarm` 红黄交替警灯 |
-| 最新助手消息为 `phase=final`，且无明显错误输出 | 🟢 绿灯 | `success` 绿灯常亮 |
+| 新回合刚开始，尚未看到助手输出或工具调用 | 🟢 绿灯 | `green` 绿灯常亮 |
+| 助手正在输出中，或存在未完成普通工具调用 | 🟢 绿灯 | `thinking` 连贯跑马灯 |
+| 存在未完成的 `require_escalated` 权限请求 | 🟡 黄灯闪烁 | `busy` 黄灯慢闪 |
+| 最新助手消息为 `phase=final`，且无明显错误输出 | 🔴 红灯 | `red` / `off` 闪 5 次，然后 `traffic` |
 | 最新回合出现非零退出码、Traceback、PermissionError、拒绝授权等 | 🔴 红灯 | `error` 红灯快闪 |
 | 会话超过活跃宽限时间无新事件 | 🔴 红灯 | `traffic` 模拟红绿灯 |
 | 没有可监控会话 | 🔴 红灯 | `off` 全灭 |
 
-> 硬件 mode 现在对齐参考项目 `JasonLam08/cursor_agent_status_light` 的典型状态映射。
+> “任务完成红灯闪 5 次”由电脑端连续发送 `red` / `off` 实现，最后自动切回 `traffic`。
 
 ## ESP32-C3 BLE 硬件
 

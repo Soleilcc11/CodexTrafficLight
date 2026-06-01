@@ -50,11 +50,10 @@ BLE_DEVICE_NAME = "CursorLight"
 BLE_MODE_CHAR_UUID = "b8b7e002-7a6b-4f4f-9a8b-11c0ffee0001"
 
 HARDWARE_MODE_BY_STATE = {
-    "thinking": "thinking",
-    "generating": "ai",
-    "busy": "busy",
-    "blocked": "alarm",
-    "success": "success",
+    "thinking": "green",
+    "generating": "thinking",
+    "review_request": "busy",
+    "success": "red_blink_5",
     "error": "error",
     "idle": "traffic",
     "off": "off",
@@ -160,9 +159,9 @@ def _tool_output_failed(output: str) -> bool:
 
 
 def _menu_state_for_hardware_state(hardware_state: str) -> str:
-    if hardware_state in ("thinking", "generating", "busy", "success"):
+    if hardware_state in ("thinking", "generating"):
         return "green"
-    if hardware_state == "blocked":
+    if hardware_state == "review_request":
         return "yellow"
     return "red"
 
@@ -227,9 +226,9 @@ def _session_status(path: Path, thread_names: dict) -> ProjectStatus | None:
     name = _safe_project_name(cwd, session_id)
 
     if pending_permission_calls:
-        hardware_state = "blocked"
+        hardware_state = "review_request"
     elif pending_tool_calls:
-        hardware_state = "busy"
+        hardware_state = "generating"
     elif latest_final_ts and latest_final_ts >= latest_user_ts and last_phase == "final":
         hardware_state = "error" if recent_tool_failed else "success"
     elif _now() - last_ts <= ACTIVE_GRACE_SECONDS and latest_assistant_ts > latest_user_ts:
@@ -403,14 +402,16 @@ class HardwareLightController:
         self.lock = threading.Lock()
 
     def request_mode(self, mode: str):
-        if mode not in {"red", "yellow", "green", "busy", "error", "thinking", "ai", "success", "traffic", "alarm", "demo", "off"}:
+        if mode not in {"red", "yellow", "green", "busy", "error", "thinking", "ai", "success", "traffic", "alarm", "demo", "off", "red_blink_5"}:
             return
 
         now = time.time()
         with self.lock:
             if self.inflight:
                 return
-            if mode == self.last_mode and (now - self.last_sent_at) < BLE_SEND_DEBOUNCE_SECONDS:
+            if mode == self.last_mode:
+                return
+            if (now - self.last_sent_at) < BLE_SEND_DEBOUNCE_SECONDS:
                 return
             self.inflight = True
 
@@ -445,7 +446,15 @@ class HardwareLightController:
             async with BleakClient(device) as client:
                 if not client.is_connected:
                     raise RuntimeError("BLE connection failed")
-                await client.write_gatt_char(BLE_MODE_CHAR_UUID, mode.encode("utf-8"), response=True)
+                if mode == "red_blink_5":
+                    for _ in range(5):
+                        await client.write_gatt_char(BLE_MODE_CHAR_UUID, b"red", response=True)
+                        await asyncio.sleep(0.22)
+                        await client.write_gatt_char(BLE_MODE_CHAR_UUID, b"off", response=True)
+                        await asyncio.sleep(0.18)
+                    await client.write_gatt_char(BLE_MODE_CHAR_UUID, b"traffic", response=True)
+                else:
+                    await client.write_gatt_char(BLE_MODE_CHAR_UUID, mode.encode("utf-8"), response=True)
 
         asyncio.run(write_mode())
 
@@ -511,10 +520,10 @@ class TrafficLightApp(rumps.App):
 
         self.menu.add(rumps.separator)
         self.menu.add(rumps.MenuItem("状态说明", callback=None))
-        self.menu.add(rumps.MenuItem("🟢 绿灯 - 分析/生成/执行/成功"))
-        self.menu.add(rumps.MenuItem("🟡 黄灯 - 严重异常 / 阻塞"))
-        self.menu.add(rumps.MenuItem("🔴 红灯 - 失败 / 空闲 / 关闭"))
-        self.menu.add(rumps.MenuItem("硬件: demo/thinking/ai/busy/success/error/alarm/traffic/off"))
+        self.menu.add(rumps.MenuItem("🟢 绿灯 - 思考状态"))
+        self.menu.add(rumps.MenuItem("🟡 黄灯闪烁 - 请求审查"))
+        self.menu.add(rumps.MenuItem("🔴 红灯 - 完成闪烁 / 失败 / 空闲"))
+        self.menu.add(rumps.MenuItem("硬件: green/thinking/busy/red_blink_5/traffic"))
 
         self.last_projects = [(p.name, p.session_id, p.state, p.hardware_state, p.hardware_mode) for p in projects]
         self.last_menu_build_time = time.time()

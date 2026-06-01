@@ -79,8 +79,7 @@ CodexTrafficLight 会把 Codex session 转换成以下硬件状态：
 ```text
 thinking
 generating
-busy
-blocked
+review_request
 success
 error
 idle
@@ -106,29 +105,16 @@ AI 正在分析
 判断条件：
 
 - 助手已开始输出非 final 消息
-- 没有未完成工具调用
+- 或存在未完成的普通工具调用
 - 会话仍在活跃宽限时间内
 
 含义：
 
 ```text
-AI 正在生成
+AI 正在生成，硬件显示跑马灯
 ```
 
-### 2.3 busy
-
-判断条件：
-
-- 存在未完成的普通工具调用
-- 该工具调用不是权限确认请求
-
-含义：
-
-```text
-正在执行命令或工具
-```
-
-### 2.4 blocked
+### 2.3 review_request
 
 判断条件：
 
@@ -138,7 +124,7 @@ AI 正在生成
 含义：
 
 ```text
-Codex 正在等待用户授权，属于阻塞状态
+Codex 正在等待用户审查或授权，硬件显示黄灯闪烁
 ```
 
 典型场景：
@@ -148,7 +134,7 @@ Codex 正在等待用户授权，属于阻塞状态
 - 需要执行沙盒外命令
 - 需要用户批准高权限操作
 
-### 2.5 success
+### 2.4 success
 
 判断条件：
 
@@ -161,7 +147,13 @@ Codex 正在等待用户授权，属于阻塞状态
 本轮 Codex 任务正常完成
 ```
 
-### 2.6 error
+硬件行为：
+
+```text
+红灯闪烁 5 次，然后切回 traffic
+```
+
+### 2.5 error
 
 判断条件：
 
@@ -186,7 +178,7 @@ ERROR:
 本轮任务出现异常或被拒绝
 ```
 
-### 2.7 idle
+### 2.6 idle
 
 判断条件：
 
@@ -204,7 +196,7 @@ ERROR:
 Codex 会话结束、空闲或暂无活动
 ```
 
-### 2.8 off
+### 2.7 off
 
 判断条件：
 
@@ -237,21 +229,21 @@ Mode Characteristic UUID: b8b7e002-7a6b-4f4f-9a8b-11c0ffee0001
 | Codex 硬件状态 | 发送到 ESP32-C3 的 mode | 当前灯效 |
 | --- | --- | --- |
 | 程序启动 | `demo` | 自动展示多种灯效 |
-| `thinking` | `thinking` | 连贯跑马灯 |
-| `generating` | `ai` | 柔和慢速跑马灯 |
-| `busy` | `busy` | 黄灯慢闪 |
-| `blocked` | `alarm` | 红黄交替警灯 |
-| `success` | `success` | 绿灯常亮 |
+| `thinking` | `green` | 绿灯常亮 |
+| `generating` | `thinking` | 连贯跑马灯 |
+| `review_request` | `busy` | 黄灯慢闪 |
+| `success` | `red_blink_5` | 电脑端发送 `red` / `off` 闪 5 次，然后 `traffic` |
 | `error` | `error` | 红灯快闪 |
 | `idle` | `traffic` | 模拟红绿灯 |
 | `off` | `off` | 全灭 |
 
 说明：
 
-- 当前硬件 mode 对齐 `JasonLam08/cursor_agent_status_light` 项目中的典型状态映射。
-- 等待权限确认被视作阻塞状态，因此映射到 `alarm`。
-- 会话空闲使用参考固件的展示模式 `traffic`。
-- 没有可监控会话时使用 `off`。
+- 思考状态用参考固件现有 `green` mode 表示绿灯常亮。
+- 生成状态用参考固件 `thinking` mode 表示跑马灯。
+- 请求审查用参考固件 `busy` mode 表示黄灯慢闪。
+- 任务完成红灯闪 5 次由电脑端连续写入 `red` / `off` 实现，最后回到 `traffic`。
+- 空闲状态使用参考固件的展示模式 `traffic`。
 
 ### 3.3 BLE 发送策略
 
@@ -356,11 +348,10 @@ open dist/CodexTrafficLight.app
 
 项目包含状态解析单元测试，覆盖：
 
-- `thinking -> thinking`
-- `generating -> ai`
-- `busy -> busy`
-- `blocked -> alarm`
-- `success -> success`
+- `thinking -> green`
+- `generating -> thinking`
+- `review_request -> busy`
+- `success -> red_blink_5`
 - `error -> error`
 - `idle -> traffic`
 
@@ -402,9 +393,9 @@ CodexTrafficLight 主要依赖 session JSONL 轮询和 notify 桥接，不像 Cl
 参考固件支持完整的 `demo / thinking / ai / busy / success / error / alarm / traffic / off` 模式，但 Codex 本身没有完整 hook 矩阵，因此以下阶段来自 session 日志推断：
 
 - `thinking`：新回合开始但尚未看到助手输出或工具调用。
-- `generating`：检测到助手非 final 输出。
-- `busy`：检测到未完成普通工具调用。
-- `blocked`：检测到未完成权限请求。
+- `generating`：检测到助手非 final 输出或未完成普通工具调用。
+- `review_request`：检测到未完成权限请求。
+- `success`：检测到 final 且本回合无明显错误输出。
 
 ### 9.4 BLE 连接受 macOS 权限影响
 
